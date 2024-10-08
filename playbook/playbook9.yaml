@@ -1,0 +1,79 @@
+---
+- hosts: client2
+  become: true
+  vars:
+    mysql_bind_address: "{{ansible_ens4.ipv4.address}}"
+    mysql_users:
+      pepito:
+        priv: '*.*:ALL'
+        host: '10.10.10.5'
+        password1:  !vault |
+                  $ANSIBLE_VAULT;1.1;AES256
+                  33613461366265653533393464616639636636303963333037653839313938366266633561333061
+                  3564336465316563333361316138643036633232383566330a623966313066643562613437353664
+                  39333262656666663866353934613038383134353235663330613163363730333932366336333830
+                  6536383061656463620a353934353961323261663738376137653237383332366432633333663131
+                  3734
+      pepita:
+        priv: '*.*:ALL'
+        host: '10.10.10.5'
+        password1:  !vault |
+                  $ANSIBLE_VAULT;1.1;AES256
+                  33613461366265653533393464616639636636303963333037653839313938366266633561333061
+                  3564336465316563333361316138643036633232383566330a623966313066643562613437353664
+                  39333262656666663866353934613038383134353235663330613163363730333932366336333830
+                  6536383061656463620a353934353961323261663738376137653237383332366432633333663131
+                  3734
+    mysql_packages:
+    - mysql-server
+    - python3-mysqldb
+  tasks:
+  - name: Vérification de la connexion
+    ping:
+  - name: Gather facts from other host client1
+    ansible.builtin.setup:
+    delegate_to: client1
+    delegate_facts: true
+  - name: Affichage de l'Ip du client1
+    debug:
+      msg: "IP du client 1 est : {{ hostvars['client1']['ansible_ens4']['ipv4']['address'] }}"
+
+  - name: installation packages serveur MySQL [mysql-server,python3-mysqldb]
+    apt:
+      name: "{{ mysql_packages }}"
+      state: latest
+      update_cache: yes
+  - name: Autorisation connexions à distance
+    lineinfile:
+      path: /etc/mysql/mysql.conf.d/mysqld.cnf
+      regexp:   '^bind-address'
+      line: "bind-address = {{ mysql_bind_address }}"
+    notify:
+      - Relancement du service mysql
+  - name: Gestion du service mysql
+    service:
+      name: mysql
+      state: started
+      enabled: yes
+  - name: Création de l utilisateur boby
+
+    mysql_user:
+      state: present
+      name: "{{ item.key }}"
+      #host: "{{ item.value.host }}"
+      host: "{{ hostvars['client1']['ansible_ens4']['ipv4']['address'] }}"
+      password: "{{ item.value.password1 }}"
+      priv: "{{ item.value.priv }}"
+    loop: "{{ query('dict', mysql_users) }}"
+  - name: Récupération MySQL Version
+    shell: mysql --version | awk '{print $5}' | awk 'gsub(",","")'
+    register: mysql_version
+    changed_when: False
+  - name: Affichage version MySQL
+    debug:
+      msg: "{{ mysql_version.stdout }}"
+  handlers:
+  - name: Relancement du service mysql
+    service:
+      name: mysql
+      state: restarted

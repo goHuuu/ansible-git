@@ -1,0 +1,23 @@
+---
+- hosts: ansible
+  become: true
+  tasks:
+  - name: install python2
+    raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal)
+  - name: check python version
+    package_facts:
+      manager: apt
+  - name: Install Python3 et pip
+    apt:
+      name:
+        - python3:3.5
+        - python3-pip
+        - python-pip
+      state: present
+      update_cache: true
+    when: {{ansible_facts.packages['python3']['version']}} <= 3.5
+  - name: update python interpreter
+    file:
+      src: /usr/bin/python3
+      dest: /usr/bin/python
+      state: link

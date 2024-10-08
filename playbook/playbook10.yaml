@@ -1,0 +1,4 @@
+- hosts: client2
+  become: true
+  roles:
+  - mysql-server

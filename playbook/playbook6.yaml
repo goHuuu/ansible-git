@@ -1,0 +1,51 @@
+---
+- hosts: client2
+  become: true
+  vars:
+    mysql_bind_address: 10.10.10.4
+    mysql_users:
+      pepito:
+        priv: '*.*:ALL'
+        host: '10.10.10.2'
+        password: 'azerty'
+    mysql_packages:
+    - mysql-server
+    - python3-mysqldb
+
+  tasks:
+  - name: Vérification de la connexion
+    ping:
+  - name: installation packages serveur MySQL [mysql-server,python3-mysqldb]
+    apt:
+      name: "{{ mysql_packages }}"
+      state: latest
+      update_cache: yes
+
+  - name: Autorisation connexions à distance
+    lineinfile:
+      path: /etc/mysql/mysql.conf.d/mysqld.cnf
+      regexp:   '^bind-address'
+      line: "bind-address = {{ mysql_bind_address }}"
+    notify:
+      - Relancement du service mysql
+
+  - name: Gestion du service mysql
+    service:
+      name: mysql
+      state: started
+      enabled: yes
+      
+  - name: Création de l utilisateur boby
+    mysql_user:
+      state: present
+      name: "{{ item.key }}"
+      host: "{{ item.value.host }}"
+      password: "{{ item.value.password }}"
+      priv: "{{ item.value.priv }}"
+    loop: "{{ query('dict', mysql_users) }}"
+
+  handlers:
+  - name: Relancement du service mysql
+    service:
+      name: mysql
+      state: restarted
